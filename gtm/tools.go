@@ -14,6 +14,9 @@ var sharedClient *Client
 // Must be called before serving any MCP requests.
 func SetSharedClient(c *Client) { sharedClient = c }
 
+// GetSharedClient returns the shared GTM client, or nil if not yet initialised.
+func GetSharedClient() *Client { return sharedClient }
+
 // RegisterTools adds all GTM tools to the MCP server.
 func RegisterTools(server *mcp.Server) {
 	// Read operations

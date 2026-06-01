@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -132,12 +133,24 @@ func browserAuthFlow(ctx context.Context, cfg *oauth2.Config) (*oauth2.Token, er
 	redirectURL := fmt.Sprintf("http://127.0.0.1:%d/callback", port)
 	cfg.RedirectURL = redirectURL
 
+	// Generate an unguessable state value to guard the callback against CSRF.
+	stateBytes := make([]byte, 16)
+	if _, err := rand.Read(stateBytes); err != nil {
+		return nil, fmt.Errorf("cannot generate OAuth state: %w", err)
+	}
+	oauthState := fmt.Sprintf("%x", stateBytes)
+
 	codeCh := make(chan string, 1)
 	errCh := make(chan error, 1)
 
 	srv := &http.Server{}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("state") != oauthState {
+			http.Error(w, "state mismatch", http.StatusBadRequest)
+			errCh <- fmt.Errorf("oauth callback state mismatch — possible CSRF")
+			return
+		}
 		code := r.URL.Query().Get("code")
 		errParam := r.URL.Query().Get("error")
 		if errParam != "" {
@@ -157,7 +170,7 @@ func browserAuthFlow(ctx context.Context, cfg *oauth2.Config) (*oauth2.Token, er
 	}()
 	defer srv.Close()
 
-	authURL := cfg.AuthCodeURL("state", oauth2.AccessTypeOffline, oauth2.ApprovalForce)
+	authURL := cfg.AuthCodeURL(oauthState, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 
 	fmt.Fprintf(os.Stderr, "\nOpen this URL in your browser to authenticate with Google:\n%s\n\n", authURL)
 	// Attempt to auto-open in browser (WSL/Linux)

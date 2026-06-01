@@ -93,11 +93,25 @@ func registerUtilityTools(server *mcp.Server) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "auth_status",
-		Description: "Check authentication status with Google Tag Manager",
+		Description: "Check authentication status with Google Tag Manager by making a live API call",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input AuthStatusInput) (*mcp.CallToolResult, AuthStatusOutput, error) {
+		c := gtm.GetSharedClient()
+		if c == nil {
+			return nil, AuthStatusOutput{
+				Authenticated: false,
+				Message:       "GTM client not initialised",
+			}, nil
+		}
+		_, err := c.ListAccounts(ctx)
+		if err != nil {
+			return nil, AuthStatusOutput{
+				Authenticated: false,
+				Message:       fmt.Sprintf("Authentication check failed: %s", err.Error()),
+			}, nil
+		}
 		return nil, AuthStatusOutput{
 			Authenticated: true,
-			Message:       "Authenticated and ready to access GTM data",
+			Message:       "Authenticated and connected to GTM API",
 		}, nil
 	})
 }

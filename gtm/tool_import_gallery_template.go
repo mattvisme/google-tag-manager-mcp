@@ -15,6 +15,7 @@ type ImportGalleryTemplateInput struct {
 	GalleryOwner string `json:"galleryOwner" jsonschema:"description:Owner of the Gallery template (e.g. 'iubenda' or 'GoogleAnalytics')"`
 	GalleryRepo  string `json:"galleryRepository" jsonschema:"description:Repository of the Gallery template (e.g. 'gtm-cookie-solution')"`
 	GallerySha   string `json:"gallerySha,omitempty" jsonschema:"description:SHA version of the Gallery template. Defaults to latest if not provided"`
+	Confirm      bool   `json:"confirm" jsonschema:"description:Must be true to confirm import. Community templates may request permissions to read cookies, URL data, and other browser state — review the template on GitHub before confirming."`
 }
 
 // ImportGalleryTemplateOutput is the output for import_gallery_template tool.
@@ -26,6 +27,16 @@ type ImportGalleryTemplateOutput struct {
 
 func registerImportGalleryTemplate(server *mcp.Server) {
 	handler := func(ctx context.Context, req *mcp.CallToolRequest, input ImportGalleryTemplateInput) (*mcp.CallToolResult, ImportGalleryTemplateOutput, error) {
+		if !input.Confirm {
+			return nil, ImportGalleryTemplateOutput{
+				Success: false,
+				Message: "Import requires confirm: true. Community templates can request permissions to read cookies, " +
+					"URL fragments, and other browser state. Review the template at " +
+					"https://github.com/" + input.GalleryOwner + "/" + input.GalleryRepo +
+					" before confirming.",
+			}, nil
+		}
+
 		wc, err := resolveWorkspace(ctx, input.AccountID, input.ContainerID, input.WorkspaceID)
 		if err != nil {
 			return nil, ImportGalleryTemplateOutput{}, err
@@ -82,6 +93,6 @@ func registerImportGalleryTemplate(server *mcp.Server) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "import_gallery_template",
-		Description: "Import a GTM Custom Template from the Community Template Gallery into a workspace. Returns the template type string to use when creating tags. Example: import_gallery_template(galleryOwner='iubenda', galleryRepository='gtm-cookie-solution')",
+		Description: "Import a GTM Custom Template from the Community Template Gallery into a workspace. Requires confirm: true — community templates may request broad browser permissions, so review the template on GitHub first. Returns the template type string to use when creating tags.",
 	}, handler)
 }
